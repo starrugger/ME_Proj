@@ -1,0 +1,421 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import math
+
+def fill_missing():
+    #traindata    
+    with open("./trainData.txt", 'r') as dataIn:
+        data=dataIn.readlines()
+    dataIn.close()
+
+    #traindataLabel
+    with open("./trainLabel.txt", 'r') as dataIn:
+        dataLabel=dataIn.readlines()
+    dataIn.close()
+    
+    #test Data
+    with open("./testData.txt", 'r') as dataIn:
+        testData=dataIn.readlines()
+    dataIn.close()
+
+    #number of rows
+    print("Rows Data {}".format(len(data)))
+    print("Rows Label {}".format(len(dataLabel)))
+    cleanData_json={}
+    amountOfFeatures=0
+    highest=1.00000000000000e+99
+    
+    #train Data
+    for i in range(0, len(data)):
+        temp_data=data[i].split("\t")
+        amountOfFeatures=len(temp_data)
+        #hold indexes of empty values
+        highest=1.00000000000000e+99
+        count=0
+        #find column that the empty value is in
+        index_of_empty=[]
+        index_with_values=[]
+        for j in range(0, len(temp_data)):
+            if float(temp_data[j]) == float(highest):
+                index_of_empty.append(j)
+                count+=1
+            else:
+                index_with_values.append(j)
+        
+        cleanData_json.update({i:[temp_data, count, index_of_empty, index_with_values]})
+
+    print("Amount of features from Train{}".format(amountOfFeatures))
+    
+    
+    #train label
+    label={}
+    labelOut=[]
+    
+    for things in dataLabel:
+        if "\n" in things:
+            newThing=things.replace("\n","")
+            things=newThing
+        if things not in label.keys():
+            label.update({things:1})
+        else:
+            currVal=label[things]+1
+            label.update({things: currVal})
+        labelOut.append(things)
+    
+    print(label)
+    
+    TestcleanData_json={}
+    amountOfFeatures=0
+    #test Data
+    for i in range(0, len(testData)):
+        temp_data=testData[i].split("\t")
+        amountOfFeatures=len(temp_data)
+        #hold indexes of empty values
+        highest=1.00000000000000e+99
+        count=0
+        #find column that the empty value is in
+        index_of_empty=[]
+        index_with_values=[]
+        for j in range(0, len(temp_data)):
+            if "\n" in temp_data[j]:
+                temp=temp_data[j]
+                temp_data[j]=temp.replace("\n","")
+            if float(temp_data[j]) == float(highest):
+                index_of_empty.append(j)
+                count+=1
+            else:
+                index_with_values.append(j)
+        
+        TestcleanData_json.update({i:[temp_data, count, index_of_empty, index_with_values]})
+        
+
+    print("Amount of features from Test {}".format(amountOfFeatures))
+
+   #[ key for row in data : [original data , amount of empty data,[indexes of all empty values], [index with values]]  ]
+    #now I have the 'clean' data but still with empty values...supposed to be set to the 1E9th
+     
+    
+    def eucDist(primaryRow, index_withValues, iterationRow, index_NoValues):
+        def dist(a,b):
+            temp=float(a-b)
+            return temp*temp
+
+        sumDist =float(0)
+        columnsUsed =[]
+        if len(cleanData_json[primaryRow][0])!= len(cleanData_json[iterationRow][0]):
+            return False
+        else:
+            #for each column that has values in rowA
+            for index in index_withValues:
+                
+                #if the current column is NOT null in the rowB
+                #that means this column for Row A is not null AND the this colmn is not null for Row B
+                #get euc dist
+                if index not in index_NoValues:
+                    columnsUsed.append(index)
+                    value_fromRowA=cleanData_json[primaryRow][0][index]
+                    value_fromRowB=cleanData_json[iterationRow][0][index]
+                    distance=dist(float(value_fromRowA),float(value_fromRowB) )
+                    sumDist+=float(distance)
+            EucDist=float(math.sqrt(sumDist))
+            return [EucDist, columnsUsed]
+                    
+
+    ##Finding KNN values for train data
+    rows=list(cleanData_json.keys())
+    Knn_NullValue_columns_json={}
+    print("finding KNN Values FOR training Data")
+    for cur_data_row in rows:
+        #list of columns with values
+        values=cleanData_json[cur_data_row][3]
+        data_perRow={}
+        #need to find euclidean distance from cur_data_row to every other row
+        
+        for knn_row in rows:
+            if knn_row != cur_data_row:
+                temp_indices_of_nullData=cleanData_json[knn_row][2]
+                
+                
+                #returns [sumDist, columnsUsed]
+                response=eucDist(cur_data_row, values, knn_row, temp_indices_of_nullData)
+                #update the relatinship between current row and row we are comparing it to
+                data_perRow.update({knn_row: response})
+        #update the data per row from every other row    
+        Knn_NullValue_columns_json.update({cur_data_row: data_perRow})
+
+
+    #i have all knn values of each row with what columns the value for derived each row FOR TRAIN
+    # Knn_NullValue_columns_json
+
+
+
+##Finding KNN values for test data
+    rows=list(TestcleanData_json.keys())
+    Knn_NullValue_columns_test={}
+    print("filnding KNN values FOR test Data")
+    for cur_data_row in rows:
+        #list of columns with values
+        values=cleanData_json[cur_data_row][3]
+        data_perRow={}
+        #need to find euclidean distance from cur_data_row to every other row
+        
+        for knn_row in rows:
+            if knn_row != cur_data_row:
+                temp_indices_of_nullData=cleanData_json[knn_row][2]
+                
+                
+                #returns [sumDist, columnsUsed]
+                response=eucDist(cur_data_row, values, knn_row, temp_indices_of_nullData)
+                #update the relatinship between current row and row we are comparing it to
+                data_perRow.update({knn_row: response})
+        #update the data per row from every other row    
+        Knn_NullValue_columns_test.update({cur_data_row: data_perRow})
+
+
+    #i have all knn values of each row with what columns the value for derived each row FOR TEST
+    # Knn_NullValue_columns_test
+
+    print("filling empty values FOR training Data")
+    #filling IN EMPTY VALUES FOR TRAINING DATA
+    s=list(Knn_NullValue_columns_json.keys())
+    print("number of rows to Iterate {}".format(len(s)))
+    ValuesKnned=0
+    for x in range (0, len(s)):
+        data_for_currentRow=Knn_NullValue_columns_json[s[x]]
+        indexofNullValues=cleanData_json[s[x]][2]
+            
+        #rows that contributed
+        row_Contribution=[]
+    #     print(indexofNullValues)
+        
+        for emptyValuekey in indexofNullValues:
+            newValue=float(0)
+            KNNdata_for_currentRow=Knn_NullValue_columns_json[s[x]]
+    #knn dict holds k:(k-1)
+    #so keys should not be hhave k 0:123  , 1:023 , 2:013
+    #         print("type of empty Value {}".format(str(type(emptyValuekey))))
+            for keys in KNNdata_for_currentRow:
+                ##cleanData_json[keys][3] in a list of columns that have a value that is not 'empty'
+                if emptyValuekey in cleanData_json[keys][3]:
+                    valueFromOriginal=cleanData_json[keys][0][emptyValuekey]
+                    
+                    
+                    temp=row_Contribution
+                    row_Contribution.append(float(valueFromOriginal))
+                
+                    
+            row_Contribution.sort()
+    #         print(row_Contribution)
+            knn=math.sqrt(len(row_Contribution))
+            temp=float(0)
+            
+            if knn !=0:
+                ValuesKnned+=1
+                for y in range(0, int(knn)):
+                    
+                    temp+=float((row_Contribution[y]))
+                
+                newValue=float(temp/float(knn))
+#                 print("changed value :{}".format(newValue))
+                
+                cleanData_json[s[x]][0][emptyValuekey] =newValue   
+    #             #at this stage I have the rows that can contribute to the empty value
+            else:
+                print("a value was not found")
+        if x%15==0:
+            print("Done with row {}".format(str(x)))
+    
+    print("filling empty values FOR test Data")
+    #filling IN EMPTY VALUES FOR TESTING DATA
+    s=list(Knn_NullValue_columns_test.keys())
+    print("number of rows to Iterate {}".format(len(s)))
+    ValuesKnned=0
+    for x in range (0, len(s)):
+        data_for_currentRow=Knn_NullValue_columns_test[s[x]]
+        indexofNullValues=TestcleanData_json[s[x]][2]
+            
+        #rows that contributed
+        row_Contribution=[]
+    #     print(indexofNullValues)
+        
+        for emptyValuekey in indexofNullValues:
+            newValue=float(0)
+            KNNdata_for_currentRow=Knn_NullValue_columns_test[s[x]]
+    #knn dict holds k:(k-1)
+    #so keys should not be hhave k 0:123  , 1:023 , 2:013
+    #         print("type of empty Value {}".format(str(type(emptyValuekey))))
+            for keys in KNNdata_for_currentRow:
+                ##TestcleanData_json[keys][3] in a list of columns that have a value that is not 'empty'
+                if emptyValuekey in TestcleanData_json[keys][3]:
+                    valueFromOriginal=TestcleanData_json[keys][0][emptyValuekey]
+                    
+                    
+                    temp=row_Contribution
+                    row_Contribution.append(float(valueFromOriginal))
+                
+                    
+            row_Contribution.sort()
+    #         print(row_Contribution)
+            knn=math.sqrt(len(row_Contribution))
+            temp=float(0)
+            
+            if knn !=0:
+                ValuesKnned+=1
+                for y in range(0, int(knn)):
+                    
+                    temp+=float((row_Contribution[y]))
+                
+                newValue=float(temp/float(knn))
+#                 print("changed value :{}".format(newValue))
+                
+                TestcleanData_json[s[x]][0][emptyValuekey] =newValue   
+    #             #at this stage I have the rows that can contribute to the empty value
+            else:
+                print("a value was not found")
+        if x%15==0:
+            print("Done with row {}".format(str(x)))       
+    # for eachRow in cleanData_json:
+    #     emptyVal=0
+    #     highest=1.00000000000000e+99
+    #     for numbers in cleanData_json[eachRow][0]:
+    #         if float(numbers)==float(highest):
+    #             emptyVal+=1
+    #     print("Row {}: old amount of empty Vals {} , new amount of empty vals {}".format(str(eachRow),str(cleanData_json[eachRow][1]), str(emptyVal)))
+    #     print("Value changed = {}".format(str(ValuesKnned)))
+    
+    with open("./NewNonEmptyValues.txt", 'w') as o:
+        for everything in cleanData_json:
+            o.write(str(list (cleanData_json[everything][0])))
+    o.close()
+    print("returned [cleanData_json, labelOut, TestcleanData_json]")
+    
+    return [cleanData_json, labelOut, TestcleanData_json]
+            
+data=fill_missing()
+
+
+# In[3]:
+
+
+def eucDist(testRow, trainRow):
+#     print(len(testRow))
+    def dist(a,b):
+#         print("dif= {} - {} ".format(a,b))
+        dif=a-b
+#         print(math.sqrt(dif*dif))
+        return math.sqrt(dif*dif)
+    
+    sum=float(0)
+#     print(testRow)
+    for x in range(0,len(testRow)):
+        test=testRow[x]
+        train=trainRow[x]
+        
+        distance=dist(float(train),float(test))
+        sum+=float(distance)
+        
+    
+    return sum 
+
+
+# In[4]:
+
+
+trainingData=data[0]
+trainingLabel=data[1]
+testingData=data[2]
+BookKeeper={}
+
+print("label is type {}".format(type(trainingLabel)))
+print(trainingLabel)
+print("training data is type {}".format(type(trainingData)))
+# print(trainingData)
+print("testing data is type {}".format(type(testingData)))
+# print(testingData)
+
+
+# In[6]:
+
+
+print(len(testingData))
+def sortFunc(e):
+    for thing in e.keys():
+        return e[thing]
+###################################
+k=int(math.sqrt(len(trainingData)))
+KNNdist={}
+print("K = {}".format(k))
+for thing in testingData:
+    dataForTestRow=testingData[thing][0]
+    KnnData=[]
+    k=math.sqrt(len(trainingData))
+    
+    #we only need sqrt of the total n = k amount
+       
+    for rows in trainingData:
+        #data values
+        dataForTrainingRow=trainingData[rows][0]
+#         print((dataForTrainingRow))
+        sum=eucDist(dataForTestRow, dataForTrainingRow)/len(trainingData)
+        
+        
+        KnnData.append({rows:sum})
+        
+    KNNdist.update({thing:KnnData})
+    
+    print("Done with {}".format(thing))
+        
+
+####################
+#i HAVE KNN DATA FOR TEST ON TRAINING
+    
+
+
+# In[30]:
+
+
+def FindMax(ClosestRows, labels):
+    bestClassifier={}
+    for eachRow in ClosestRows:
+        for key in eachRow.keys():
+#             print(eachRow[key])
+            classifier=labels[key]
+#             print(classifier)
+        
+        if classifier not in bestClassifier.keys():
+            bestClassifier.update({classifier:1})
+        else:
+            currVal=bestClassifier[classifier]+1
+            bestClassifier.update({classifier:currVal})
+    
+    print(bestClassifier)
+        
+    
+
+
+# In[32]:
+
+
+k=int(math.sqrt(len(trainingData)))
+print(k)
+classifier={}
+for values in KNNdist:
+    valueBasedOffTestData=KNNdist[values]
+    valueBasedOffTestData.sort(key=sortFunc)
+    closestRows=valueBasedOffTestData[0:k]
+#     print(closestRows)
+    best=FindMax(closestRows,trainingLabel)
+    
+    
+    
+
+
+# In[ ]:
+
+
+
+
